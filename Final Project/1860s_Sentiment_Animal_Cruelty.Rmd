@@ -1,0 +1,142 @@
+---
+title: "1860s Sentiment towards animal cruelty"
+author: "Oliver Hofman"
+date: "2026-05-20"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(ggwordcloud)
+library(syuzhet)
+
+```
+
+# Loading the data into R
+using Swagger UI, a link is created from the search "dyrplager* py:[1860-69]" in Mediestream
+```{r}
+link <- "https://labs.statsbiblioteket.dk/labsapi/api/aviser/export/fields?query=dyrplager%2A%20py%3A%5B1860%20TO%201869%5D&fields=link&fields=recordID&fields=timestamp&fields=pwa&fields=cer&fields=fulltext_org&fields=pageUUID&fields=editionUUID&fields=titleUUID&fields=editionId&fields=familyId&fields=newspaper_page&fields=newspaper_edition&fields=lplace&fields=location_name&fields=location_coordinates&max=-1&structure=header&structure=content&format=CSV"
+
+URLdecode(link)
+
+Dyr_1860s <- read.csv(link)
+```
+
+# Analysing the datas origin
+Here its seen that Copenhagen is in the clear lead, with quite the drop to the next most. 
+it also shows that "flyveposten" is the paper with most mentions, with berlingske right behind it.
+```{r}
+Dyr_1860s %>% 
+  count(lplace, sort = TRUE)
+
+Dyr_1860s %>% 
+  count(familyId, sort = TRUE)
+```
+
+#Textmining
+Here the articles are divided up into singular words and then edited by using a list of stopwords pertaining to especially 1800s danish.
+
+```{r}
+Dyr_1860s_tidy <- Dyr_1860s %>% 
+  unnest_tokens(word, fulltext_org)
+
+stopwords_1800s <- read_csv("https://gist.githubusercontent.com/maxodsbjerg/1537cf14c3d46b3d30caa5d99f8758e9/raw/9f044a38505334f035be111c9a3f654a24418f6d/stopord_18_clean.csv")
+
+Dyr_1860s_wStopwords<- Dyr_1860s_tidy %>% 
+  anti_join(stopwords_1800s) %>% 
+  count(word, sort = TRUE)
+```
+
+#Removing numerals and creating a top 100
+Here numbers are filtered out, as to only get actual words that can be analysed. Then its put into a top 100 of most mentions
+```{r}
+Dyr_1860s_nonum <- Dyr_1860s_wStopwords %>% 
+filter(!str_detect(word, "[0-9]"))
+
+ Dyr_1860s_top100 <- head(Dyr_1860s_nonum, 100)
+ 
+ Dyr_1860s_top100
+```
+
+#Wordcloud
+by creating a wordcloud with the top 100, its made easier to visualize whats mentioned the most.
+
+```{r}
+ggplot(data = Dyr_1860s_top100, aes(label = word, size = n)) +
+  geom_text_wordcloud_area(aes(color = n), shape = "star") +
+  scale_size_area(max_size = 12) +
+  scale_color_gradientn(colors = c("darkgreen","blue","red")) +
+  theme_minimal()
+
+```
+
+#Sentiment analysis
+here the text a once again edited with the stopwords, and then joined together as to get a overall sentiment score from the articles.
+
+```{r}
+fulltext_tidy_recordID <- Dyr_1860s_tidy %>% 
+  anti_join(stopwords_1800s, by = c("word" = "word")) %>% 
+  group_by(recordID) %>%  
+  summarise(fulltext_clean = paste(word, collapse = " "), .groups = "drop")
+
+sentiment_text_recordID <- fulltext_tidy_recordID %>% 
+  mutate(
+    fulltext_sentiment = map_dbl(
+      fulltext_clean,
+      function(x) get_sentiment(x, method = "afinn")
+    )
+  )
+sentiment_by_record_1860s <- sentiment_text_recordID %>%
+  group_by(recordID) %>%
+  summarise(
+    mean_sentiment = mean(fulltext_sentiment, na.rm = TRUE),
+    n = n()
+  )
+
+
+```
+
+#Visualizing the Sentiment
+here the articles sentiment score is plotted into a histogram to better visualize the spread of sentiment across all the articles
+
+```{r}
+library(ggplot2)
+
+ggplot(sentiment_by_record_1860s,
+       aes(x = mean_sentiment)) +
+  geom_histogram(bins = 30,
+                 fill = "Blue",
+                 color = "white") +
+  theme_minimal() +
+  labs(
+    title = "Fordeling af sentiment",
+    x = "Sentiment score",
+    y = "Antal tekster"
+  )
+```
+
+#Average Sentiment Score
+here a average of the sentiment is calculated 
+
+```{r}
+mean(sentiment_by_record_1860s$mean_sentiment,
+     na.rm = TRUE)
+
+```
+
+#Categorizing the sentiment
+by dividing all the articles into 3 Categories, "Positiv", "Negativ" and "Neutral" and counting how many of the articles land into each categories 
+
+```{r}
+sentiment_CAT_1860s <- sentiment_by_record_1860s %>%
+  mutate(sentiment_category = case_when(
+    mean_sentiment > 0 ~ "Positiv",
+    mean_sentiment < 0 ~ "Negativ",
+    TRUE ~ "Neutral"
+  ))
+
+sentiment_CAT_1860s %>%
+  count(sentiment_category)
+```
