@@ -1,5 +1,4 @@
-"Animal cruelty in Danish newspapers in 1860s-70s"
+"Amerikafeber: En sentimentale analyse af danske avisers portrættering af udvandring til Amerika"
 Oliver Hofman, Email: 202506986@post.au.dk
 
-Using Sentiment analysis the paper delves into how animal cruelty is portrayed and talked about in newspapers in the 1860s and 70s. 
-The paper concludes by finding that the overall sentiment was negative, but with some significant positive and neutral values changing over the decades.
+Using Textmining and Sentiment analysis, the project delves into how emigration to America was viewed by papers across Denmark.
