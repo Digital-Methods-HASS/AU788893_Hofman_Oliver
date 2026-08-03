@@ -1,0 +1,168 @@
+---
+title: "1800s emigration to America"
+author: "Oliver Hofman"
+date: "2026-08-03"
+output: html_document
+---
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(ggwordcloud)
+library(syuzhet)
+library (stopwords)
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+```
+
+# Loading the data into R
+using Swagger UI, a link is created from the search "(Amerika OR USA OR "de forenede Stater") AND (udvandre* OR emigr*) AND py:[1840 TO 1880] NOT (Thingvalla OR "Allan Line" OR Cunard)"
+```{r Loading Data}
+link <-"https://labs.statsbiblioteket.dk/labsapi/api/aviser/export/fields?query=%28Amerika%20OR%20USA%20OR%20%22de%20forenede%20Stater%22%29%20AND%20%28udvandre%2A%20OR%20emigr%2A%29%20AND%20py%3A%5B1840%20TO%201880%5D%20NOT%20%28Thingvalla%20OR%20%22Allan%20Line%22%20OR%20Cunard%29&fields=link&fields=recordID&fields=timestamp&fields=pwa&fields=cer&fields=fulltext_org&fields=pageUUID&fields=editionUUID&fields=titleUUID&fields=editionId&fields=familyId&fields=newspaper_page&fields=newspaper_edition&fields=lplace&fields=location_name&fields=location_coordinates&max=-1&structure=header&structure=content&format=CSV"
+  
+URLdecode(link)
+
+NewsP_1800s <- read.csv(link)
+```
+
+# Analysing the datas origin
+Here its seen that Copenhagen is in the clear lead, with quite the drop to the next most. 
+it also shows that "Dagstelegraphen" is the paper with most mentions.
+```{r Origin of the data}
+NewsP_1800s %>% 
+  count(lplace, sort = TRUE)
+
+NewsP_1800s %>% 
+  count(familyId, sort = TRUE)
+```
+
+#Textmining
+Here the articles are divided up into singular words and then edited by using 2 lists of stopwords pertaining to  1800s danish and modern danish
+
+```{r Textmining}
+
+# Tokenize the newspaper text
+NewsP_1800s_tidy <- NewsP_1800s %>%
+  unnest_tokens(word, fulltext_org)
+
+# Read the 1800s stopword list
+stopwords_1800s <- read_csv(
+  "https://gist.githubusercontent.com/maxodsbjerg/1537cf14c3d46b3d30caa5d99f8758e9/raw/9f044a38505334f035be111c9a3f654a24418f6d/stopord_18_clean.csv",
+  show_col_types = FALSE
+)
+
+# Load modern Danish stopwords
+stopwords_modern <- tibble(
+  word = stopwords::stopwords("da")
+)
+
+# Combine the two stopword lists and remove duplicates
+stopwords_all <- bind_rows(
+  stopwords_1800s,
+  stopwords_modern
+) %>%
+  distinct(word)
+
+# Remove all stopwords and count the remaining words
+NewsP_1800s_wStopwords <- NewsP_1800s_tidy %>%
+  anti_join(stopwords_all, by = "word") %>%
+  count(word, sort = TRUE)
+
+```
+
+#Removing numerals and creating a top 100
+Here numbers are filtered out, as to only get actual words that can be analysed. Then its put into a top 100 of most mentions
+```{r Removing numerals and creating a top 100}
+NewsP_1800s_nonum <- NewsP_1800s_wStopwords %>% 
+filter(!str_detect(word, "[0-9]"))
+
+ NewsP_1800s_top100 <- head(NewsP_1800s_nonum, 100)
+ 
+ NewsP_1800s_top100
+```
+
+#Wordcloud
+by creating a wordcloud with the top 100, its made easier to visualize whats mentioned the most.
+
+```{r}
+ggplot(data = NewsP_1800s_top100, aes(label = word, size = n)) +
+  geom_text_wordcloud_area(aes(color = n), shape = "star") +
+  scale_size_area(max_size = 12) +
+  scale_color_gradientn(colors = c("darkgreen","blue","red")) +
+  theme_minimal()
+```
+
+#Sentiment analysis
+here the words get joined together back into the whole article, as to get a overall sentiment score from the articles.
+
+```{r}
+fulltext_tidy_recordID <- NewsP_1800s_tidy %>% 
+  anti_join(stopwords_1800s, by = c("word" = "word")) %>% 
+  group_by(recordID) %>%  
+  summarise(fulltext_clean = paste(word, collapse = " "), .groups = "drop")
+
+sentiment_text_recordID <- fulltext_tidy_recordID %>% 
+  mutate(
+    fulltext_sentiment = map_dbl(
+      fulltext_clean,
+      function(x) get_sentiment(x, method = "afinn")
+    )
+  )
+sentiment_by_record_1800s <- sentiment_text_recordID %>%
+  group_by(recordID) %>%
+  summarise(
+    mean_sentiment = mean(fulltext_sentiment, na.rm = TRUE),
+    n = n()
+  )
+
+
+```
+
+#Visualizing the Sentiment
+here the articles sentiment score is plotted into a histogram to better visualize the spread of sentiment across all the articles
+
+```{r}
+library(ggplot2)
+
+ggplot(sentiment_by_record_1800s,
+       aes(x = mean_sentiment)) +
+  geom_histogram(bins = 30,
+                 fill = "Blue",
+                 color = "white") +
+  theme_minimal() +
+  labs(
+    title = "Fordeling af sentiment",
+    x = "Sentiment score",
+    y = "Antal tekster"
+  )
+ggsave("histogram 1800s.png", width = 8, height = 6, dpi = 300)
+```
+
+#Average Sentiment Score
+here a average of the sentiment is calculated 
+
+```{r}
+mean(sentiment_by_record_1800s$mean_sentiment,
+     na.rm = TRUE)
+
+```
+
+#Categorizing the sentiment
+by dividing all the articles into 3 Categories, "Positiv", "Negativ" and "Neutral" and counting how many of the articles land into each categories 
+
+```{r}
+sentiment_CAT_1800s <- sentiment_by_record_1800s %>%
+  mutate(sentiment_category = case_when(
+    mean_sentiment > 0 ~ "Positiv",
+    mean_sentiment < 0 ~ "Negativ",
+    TRUE ~ "Neutral"
+  ))
+
+sentiment_CAT_1800s %>%
+  count(sentiment_category)
+
+```
