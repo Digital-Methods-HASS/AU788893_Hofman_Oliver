@@ -1,0 +1,84 @@
+---
+title: "Are we more civilized today?"
+author: "Oliver Hofman"
+date: " Created 20 march 2026"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message=FALSE)
+```
+This exercise is based on the dataset provided by [OurWorldInData project](https://ourworldindata.org/homicides) based at the Oxford University.
+## The long-term trend in Homicides in Western Europe
+```{r library}
+library(tidyverse)
+```
+## Load the available data from ourworldindata.org
+```{r load-data}
+Western_Europe <- read_csv("data/homicide-rates-across-western-europe.csv")
+```
+
+```{r inspect}
+head(Western_Europe)
+glimpse(Western_Europe)
+```
+
+```{r relabel column}
+# names() function produces the names of columns as a character vector with 4 elements
+names(Western_Europe)
+
+# If we can select the fourth element, we can also rename it / reassign a name to it
+names(Western_Europe)[4] <- "homicides_per_100k"
+
+# check the new name!
+names(Western_Europe)
+```
+## Let's see what the long-term trend is in homicides
+```{r plot-homicides, eval = TRUE}
+
+# option 2 - this one starts with the dataset and continues with ggplot()
+Western_Europe %>% 
+  ggplot(aes(x=Year, y=homicides_per_100k,color=Entity))+
+  geom_line()+
+  theme_minimal()
+
+  #....CONTINUE WITH YOUR OWN CODE
+
+```
+## Uncouple the homicides of individual countries for easier view
+```{r eval = TRUE}
+names(Western_Europe)[1] <- "Countries"
+
+
+Western_Europe %>% 
+  ggplot(aes(x=Year, y=homicides_per_100k,color=Countries))+
+  geom_line()+
+  facet_wrap(~Countries, ncol = 2)+
+  theme_minimal()
+
+```
+## Compare the trends in homicide with the pattern of reign duration among Danish rulers through time.
+```{r eval = TRUE}
+kings <- read_csv("data/kings.csv", na=c("NULL", ""))
+
+
+kings %>% 
+  mutate(Duration=End_year-Start_year) %>% 
+  mutate(Midyear = End_year - Duration/2) %>% 
+  ggplot(aes(x=Midyear, y=Duration))+
+  geom_point(color="blue")+
+  theme_classic()+
+  geom_smooth()+
+labs(title = "When and how long Danish Monarchs ruled",
+         x = "Midyear of reign",
+         y = "Duration of reign") +
+  theme_minimal()
+  
+
+#Conclusion: compared with the homicide rates, danish monarchs duration of reign seems to increase over time, with a lot of verity. Whereas homicide rates, across all countries, fall, but also have periodically rising rates    
+```
+###  Final question: 
+
+*In <250 words articulate your answer on the basis of the data visualizations to the following question*: **are we more civilized today?** 
+
+Looking at the visualizations, its clear that homicide rates have declined sharply and that we live in a radically different society. some of that may be caused by a more efficient policing of laws with modern tools, or it could be  societal ethical and moral changes since the middle ages. Probably a combination of the 2 and other factors like improved living standards. Although homicide rates have declined, it is however not wholly indicative of "civility", as the visualizations don't show other forms of violence, and "civility" is not only defined by a lack of violence, but also things like Ethics and Moral attitudes, and so much more. so there may have been a sharp decline in homicides in Western-Europe,  but it doesn't necessarily show a increase in civility across Western-Europe. 
